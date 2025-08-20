@@ -11,6 +11,7 @@ from bot.config import load_config
 
 def register_handlers(dp: Dispatcher, banner_url: str):
     cfg = load_config()
+
     @dp.message_handler(commands=["start"])
     async def start(msg: types.Message):
         txt = (

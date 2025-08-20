@@ -19,6 +19,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
+
 async def main():
     parser = argparse.ArgumentParser(description="Admin panel CLI")
     sub = parser.add_subparsers(dest="cmd")
