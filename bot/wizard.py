@@ -141,9 +141,13 @@ def register_wizard(dp: Dispatcher):
         try:
             seller_id = int(cp) if role == "buyer" else cb.from_user.id
             buyer_id = cb.from_user.id if role == "buyer" else int(cp)
-        except Exception:
-            seller_id = cb.from_user.id if role == "seller" else None
-            buyer_id = cb.from_user.id if role == "buyer" else None
+        except ValueError:
+            await cb.message.answer(
+                "❌ Counterparty ID must be a numeric Telegram ID."
+            )
+            await state.finish()
+            await cb.answer()
+            return
 
         payload = {
             "buyer_id": buyer_id,
