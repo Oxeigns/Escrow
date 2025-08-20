@@ -11,27 +11,16 @@ from database.mongo import db
 def register_handlers(dp: Dispatcher, banner_url: str):
     cfg = load_config()
 
-    # Wizard
+    # Wizard routes
     register_wizard(dp)
 
     @dp.message_handler(commands=["start"])
     async def cmd_start(msg: types.Message):
         text = (
-            "*Escrow Bot Ultimate*\n"
+            "*Escrow Bot*\n"
             "Create safe escrow deals in a few guided steps.\n\n"
             "Use /escrow to begin, /help for commands, or /support for assistance."
         )
-        if banner_url:
-            try:
-                await msg.answer_photo(
-                    banner_url,
-                    caption=md2_escape(text),
-                    parse_mode="MarkdownV2",
-                    reply_markup=main_menu(),
-                )
-                return
-            except Exception:
-                pass
         await msg.answer(md2_escape(text), parse_mode="MarkdownV2", reply_markup=main_menu())
 
     @dp.message_handler(commands=["help"])
@@ -125,12 +114,8 @@ def register_handlers(dp: Dispatcher, banner_url: str):
         else:
             await msg.answer(md2_escape("Use /escrow to start or /support for help."), parse_mode="MarkdownV2")
 
-    @dp.callback_query_handler(lambda c: c.data in {"support_contact", "support_faq"})
+    @dp.callback_query_handler(lambda c: c.data == "support_faq")
     async def cb_support_buttons(cb: types.CallbackQuery):
-        if cb.data == "support_contact":
-            text = "Support: https://t.me/botdukan\nDeveloper @oxeign"
-            await cb.message.answer(md2_escape(text), parse_mode="MarkdownV2")
-        else:
-            await cb.message.answer(md2_escape("FAQ: https://example.com/faq"), parse_mode="MarkdownV2")
+        await cb.message.answer(md2_escape("FAQ: https://example.com/faq"), parse_mode="MarkdownV2")
         await cb.answer()
 
