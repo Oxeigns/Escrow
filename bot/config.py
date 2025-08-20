@@ -9,7 +9,6 @@ load_dotenv()
 class Config:
     BOT_TOKEN: str
     OWNER_ID: int
-    ADMIN_IDS: list
     BANNER_URL: str
     OWNER_URL: str
     DEVELOPER_URL: str
@@ -33,9 +32,6 @@ def load_config() -> Config:
     return Config(
         BOT_TOKEN=os.getenv("BOT_TOKEN", ""),
         OWNER_ID=int(os.getenv("OWNER_ID", "0")),
-        ADMIN_IDS=[
-            int(x) for x in os.getenv("ADMIN_IDS", "").replace(" ", "").split(",") if x
-        ],
         BANNER_URL="https://graph.org/file/1200bc92e8816982887fe-d272d0fddc2a392fed.jpg",
         OWNER_URL="https://t.me/oxeign",
         DEVELOPER_URL="https://t.me/oxeign",

@@ -9,8 +9,6 @@ services:
         sync: false
       - key: OWNER_ID
         value: "123456789"
-      - key: ADMIN_IDS
-        value: "123456789,987654321"
       - key: USE_WEBHOOK
         value: "true"
       - key: WEBHOOK_HOST

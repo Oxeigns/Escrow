@@ -5,10 +5,12 @@ from bot.blacklist import is_blacklisted
 from bot.utils import md2_escape
 from database.mongo import db
 from bot.forms import start_form
+from bot.admins import add_admin, remove_admin, list_admins
+from bot.config import load_config
 
 
 def register_handlers(dp: Dispatcher, banner_url: str):
-
+    cfg = load_config()
     @dp.message_handler(commands=["start"])
     async def start(msg: types.Message):
         txt = (
@@ -65,6 +67,39 @@ def register_handlers(dp: Dispatcher, banner_url: str):
             md2_escape("Open a dispute by referencing your Escrow ID in the message."),
             parse_mode="MarkdownV2",
         )
+
+    @dp.message_handler(commands=["sudo"])
+    async def cmd_sudo(msg: types.Message):
+        if msg.from_user.id != cfg.OWNER_ID:
+            return
+        args = msg.get_args()
+        if not args.isdigit():
+            await msg.reply("Usage: /sudo <telegram_id>")
+            return
+        await add_admin(int(args))
+        await msg.answer("Admin added.")
+
+    @dp.message_handler(commands=["rmsudo"])
+    async def cmd_rmsudo(msg: types.Message):
+        if msg.from_user.id != cfg.OWNER_ID:
+            return
+        args = msg.get_args()
+        if not args.isdigit():
+            await msg.reply("Usage: /rmsudo <telegram_id>")
+            return
+        await remove_admin(int(args))
+        await msg.answer("Admin removed.")
+
+    @dp.message_handler(commands=["sudolist"])
+    async def cmd_sudolist(msg: types.Message):
+        if msg.from_user.id != cfg.OWNER_ID:
+            return
+        admins = await list_admins()
+        if admins:
+            text = "Admins:\n" + "\n".join(str(a) for a in admins)
+        else:
+            text = "No admins."
+        await msg.answer(text)
 
     @dp.message_handler()
     async def echo_router(msg: types.Message):
