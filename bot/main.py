@@ -6,6 +6,7 @@ from pathlib import Path
 from aiogram import Bot, Dispatcher
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.utils.executor import start_polling
+from aiogram.utils import exceptions
 from loguru import logger
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -46,7 +47,17 @@ def main():
         loop = asyncio.get_event_loop()
         loop.run_until_complete(run_webhook(bot, dp))
     else:
-        start_polling(dp, skip_updates=True, on_startup=on_startup, on_shutdown=on_shutdown)
+        try:
+            start_polling(
+                dp,
+                skip_updates=True,
+                on_startup=on_startup,
+                on_shutdown=on_shutdown,
+            )
+        except exceptions.TerminatedByOtherGetUpdates:
+            logger.error(
+                "Another instance of the bot is running. Please ensure only one bot instance runs at a time."
+            )
 
 
 if __name__ == "__main__":
