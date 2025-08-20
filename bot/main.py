@@ -42,16 +42,14 @@ async def main():
         if cfg.USE_WEBHOOK:
             await run_webhook(bot, dp)
         else:
-            await dp.start_polling(
-                skip_updates=True,
-                on_startup=on_startup,
-            )
+            await dp.start_polling(on_startup=on_startup)
     except exceptions.TerminatedByOtherGetUpdates:
         logger.error(
             "Another instance of the bot is running. Please ensure only one bot instance runs at a time."
         )
     finally:
-        await bot.session.close()
+        session = await bot.get_session()
+        await session.close()
         logger.info("🛑 Bot shutdown complete")
 
 
