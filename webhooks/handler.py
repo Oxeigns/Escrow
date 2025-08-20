@@ -23,7 +23,6 @@ async def run_webhook(bot: Bot, dp: Dispatcher):
         webhook_path=cfg.WEBHOOK_PATH,
         on_startup=on_startup,
         on_shutdown=on_shutdown,
-        skip_updates=True,
         host=cfg.WEBAPP_HOST,
         port=cfg.WEBAPP_PORT,
     )
