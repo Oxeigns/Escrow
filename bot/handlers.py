@@ -1,131 +1,142 @@
 from aiogram import Dispatcher, types
 from bot.buttons import main_menu
 from bot.support import support_message
-from bot.blacklist import is_blacklisted
 from bot.utils import md2_escape
-from database.mongo import db
-from bot.forms import start_form
 from bot.admins import add_admin, remove_admin, list_admins
 from bot.config import load_config
+from bot.wizard import register_wizard
 
 
 def register_handlers(dp: Dispatcher, banner_url: str):
     cfg = load_config()
 
+    # Wizard
+    register_wizard(dp)
+
     @dp.message_handler(commands=["start"])
-    async def start(msg: types.Message):
-        txt = (
+    async def cmd_start(msg: types.Message):
+        text = (
             "*Escrow Bot Ultimate*\n"
-            "\n"
-            "💼 Secure peer‑to‑peer trades with escrow.\n"
-            "Press 🛡️ Escrow to begin or ℹ️ Help for guidance."
+            "Create safe escrow deals in a few guided steps.\n\n"
+            "Use /escrow to begin, /help for commands, or /support for assistance."
         )
         if banner_url:
             try:
                 await msg.answer_photo(
                     banner_url,
-                    caption=md2_escape(txt),
+                    caption=md2_escape(text),
                     parse_mode="MarkdownV2",
                     reply_markup=main_menu(),
                 )
                 return
-            except:
+            except Exception:
                 pass
-        await msg.answer(
-            md2_escape(txt), parse_mode="MarkdownV2", reply_markup=main_menu()
+        await msg.answer(md2_escape(text), parse_mode="MarkdownV2", reply_markup=main_menu())
+
+    @dp.message_handler(commands=["help"])
+    async def cmd_help(msg: types.Message):
+        text = (
+            "*Help*\n"
+            "• /escrow — start a new escrow\n"
+            "• /myescrows — list your escrows\n"
+            "• /cancel — cancel the current step\n"
+            "• /support — contact support / read FAQ"
         )
+        await msg.answer(md2_escape(text), parse_mode="MarkdownV2")
 
     @dp.message_handler(commands=["support"])
     async def cmd_support(msg: types.Message):
         await support_message(msg, banner_url)
 
-    @dp.message_handler(commands=["help"])
-    async def cmd_help(msg: types.Message):
-        txt = (
-            "*How to use the bot*\n"
-            "\n"
-            "🛡️ /escrow – start a protected deal\n"
-            "🆘 /support – talk to support or view the FAQ\n"
-            "⚖️ /dispute – open a dispute with your Escrow ID\n"
-        )
-        await msg.answer(
-            md2_escape(txt), parse_mode="MarkdownV2", reply_markup=main_menu()
-        )
+    @dp.message_handler(commands=["myescrows"])
+    async def cmd_myescrows(msg: types.Message):
+        from database.mongo import db
 
-    @dp.message_handler(commands=["escrow"])
-    async def cmd_escrow(msg: types.Message):
-        blacklisted, info = await is_blacklisted(msg.from_user.id)
-        if blacklisted:
-            reason = info.get("reason", "violation")
-            await msg.answer(
-                md2_escape(f"⚠️ You are blacklisted. Reason: {reason}"),
-                parse_mode="MarkdownV2",
-            )
-            return
-        await db.users.update_one(
-            {"telegram_id": msg.from_user.id},
-            {
-                "$set": {
-                    "telegram_id": msg.from_user.id,
-                    "username": msg.from_user.username,
-                    "full_name": msg.from_user.full_name,
+        cur = (
+            db.escrows.find(
+                {
+                    "$or": [
+                        {"buyer_id": msg.from_user.id},
+                        {"seller_id": msg.from_user.id},
+                    ]
                 }
-            },
-            upsert=True,
+            )
+            .sort("_id", -1)
+            .limit(10)
         )
-        await start_form(msg)
+        rows = [r async for r in cur]
+        if not rows:
+            await msg.answer(md2_escape("No escrows found."), parse_mode="MarkdownV2")
+            return
+        lines = []
+        for r in rows:
+            rid = str(r.get("_id"))
+            st = r.get("state", "INITIATED")
+            amt = r.get("amount_cents", 0) // 100
+            cur = r.get("currency", "INR")
+            lines.append(f"• {rid} — {st} — {amt} {cur}")
+        await msg.answer(md2_escape("*Your Last Escrows:*\n" + "\n".join(lines)), parse_mode="MarkdownV2")
 
-    @dp.message_handler(commands=["dispute"])
-    async def cmd_dispute(msg: types.Message):
-        await msg.answer(
-            md2_escape("Open a dispute by referencing your Escrow ID in the message."),
-            parse_mode="MarkdownV2",
-        )
-
+    # Owner-only admin helpers
     @dp.message_handler(commands=["sudo"])
     async def cmd_sudo(msg: types.Message):
         if msg.from_user.id != cfg.OWNER_ID:
             return
-        args = msg.get_args()
-        if not args.isdigit():
-            await msg.reply("Usage: /sudo <telegram_id>")
+        parts = (msg.text or "").split()
+        if len(parts) != 2 or not parts[1].isdigit():
+            await msg.answer(md2_escape("Usage: /sudo <telegram_id>"), parse_mode="MarkdownV2")
             return
-        await add_admin(int(args))
-        await msg.answer("Admin added.")
+        await add_admin(int(parts[1]))
+        await msg.answer(md2_escape("OK: admin added"), parse_mode="MarkdownV2")
 
     @dp.message_handler(commands=["rmsudo"])
     async def cmd_rmsudo(msg: types.Message):
         if msg.from_user.id != cfg.OWNER_ID:
             return
-        args = msg.get_args()
-        if not args.isdigit():
-            await msg.reply("Usage: /rmsudo <telegram_id>")
+        parts = (msg.text or "").split()
+        if len(parts) != 2 or not parts[1].isdigit():
+            await msg.answer(md2_escape("Usage: /rmsudo <telegram_id>"), parse_mode="MarkdownV2")
             return
-        await remove_admin(int(args))
-        await msg.answer("Admin removed.")
+        await remove_admin(int(parts[1]))
+        await msg.answer(md2_escape("OK: admin removed"), parse_mode="MarkdownV2")
 
     @dp.message_handler(commands=["sudolist"])
     async def cmd_sudolist(msg: types.Message):
         if msg.from_user.id != cfg.OWNER_ID:
             return
-        admins = await list_admins()
-        if admins:
-            text = "Admins:\n" + "\n".join(str(a) for a in admins)
-        else:
-            text = "No admins."
-        await msg.answer(text)
+        rows = await list_admins()
+        if not rows:
+            await msg.answer(md2_escape("No admins."), parse_mode="MarkdownV2")
+            return
+        await msg.answer(md2_escape("Admins:\n" + "\n".join(map(str, rows))), parse_mode="MarkdownV2")
 
+    # Fallback router for keyboard
     @dp.message_handler()
     async def echo_router(msg: types.Message):
         text = (msg.text or "").lower()
         if "escrow" in text:
-            await cmd_escrow(msg)
+            await cmd_escrow_entry(msg)  # alias
         elif "support" in text:
             await cmd_support(msg)
         elif "help" in text:
             await cmd_help(msg)
         else:
-            await msg.answer(
-                md2_escape("Use /escrow to start or /support for help."),
-                parse_mode="MarkdownV2",
-            )
+            await msg.answer(md2_escape("Use /escrow to start or /support for help."), parse_mode="MarkdownV2")
+
+    # alias to /escrow for the fallback router
+    async def cmd_escrow_entry(msg: types.Message):
+        state = dp.current_state(user=msg.from_user.id, chat=msg.chat.id)
+        await state.finish()
+        for handler in dp.message_handlers.handlers:
+            if getattr(handler, "commands", None) and "escrow" in handler.commands:
+                await handler.callback(msg)
+                return
+
+    @dp.callback_query_handler(lambda c: c.data in {"support_contact", "support_faq"})
+    async def cb_support_buttons(cb: types.CallbackQuery):
+        if cb.data == "support_contact":
+            await cb.message.answer(md2_escape("Contact @support"), parse_mode="MarkdownV2")
+        else:
+            await cb.message.answer(md2_escape("FAQ: https://example.com/faq"), parse_mode="MarkdownV2")
+        await cb.answer()
+
