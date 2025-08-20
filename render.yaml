@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: escrow-bot-ultimate
+    env: docker
+    plan: starter
+    autoDeploy: true
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: OWNER_ID
+        value: "123456789"
+      - key: ADMIN_IDS
+        value: "123456789,987654321"
+      - key: BANNER_URL
+        value: "https://example.com/banner.png"
+      - key: USE_WEBHOOK
+        value: "true"
+      - key: WEBHOOK_HOST
+        value: "https://your-render.onrender.com"
+      - key: WEBHOOK_PATH
+        value: "/telegram-webhook"
+      - key: WEBAPP_HOST
+        value: "0.0.0.0"
+      - key: WEBAPP_PORT
+        value: "8080"
+      - key: MONGO_URL
+        sync: false
+      - key: MONGO_DB_NAME
+        value: "escrow_bot"
+      - key: ESCROW_API_URL
+        value: "https://api.your-escrow.example"
+      - key: ESCROW_API_KEY
+        sync: false
