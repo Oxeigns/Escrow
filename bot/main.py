@@ -1,9 +1,16 @@
+import asyncio
 import logging
+import sys
+from pathlib import Path
+
 from aiogram import Bot, Dispatcher
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.utils.executor import start_polling
 from loguru import logger
-import asyncio
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.append(str(ROOT_DIR))
 
 from bot.config import load_config
 from bot.handlers import register_handlers
