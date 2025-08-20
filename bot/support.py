@@ -21,4 +21,9 @@ async def support_message(msg: types.Message, banner_url: str):
             return
         except:  # fallback to text
             pass
-    await msg.answer(text, parse_mode="MarkdownV2", reply_markup=support_buttons())
+    # Ensure MarkdownV2 safety even in text fallback
+    await msg.answer(
+        md2_escape(text),
+        parse_mode="MarkdownV2",
+        reply_markup=support_buttons(),
+    )
