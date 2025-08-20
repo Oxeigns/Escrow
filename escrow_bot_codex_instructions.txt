@@ -8,7 +8,6 @@ Escrow Bot Ultimate - Codex Instructions
    - `ADMIN_IDS`: Comma-separated Telegram user ids with admin access
    - `USE_WEBHOOK`: Set `true` to enable webhook mode or `false` for polling
    - `MONGO_URL` and `MONGO_DB_NAME`: MongoDB connection details
-   - `ESCROW_API_*`: Credentials for the escrow provider
 3. Run the bot locally:
    ```bash
    pip install -r requirements.txt

@@ -21,8 +21,6 @@ class Config:
     WEBAPP_PORT: int
     MONGO_URL: str
     MONGO_DB_NAME: str
-    ESCROW_API_URL: str
-    ESCROW_API_KEY: str
 
 
 def parse_bool(val: str, default=False):
@@ -49,6 +47,4 @@ def load_config() -> Config:
         WEBAPP_PORT=int(os.getenv("WEBAPP_PORT", "8080")),
         MONGO_URL=os.getenv("MONGO_URL", "mongodb://localhost:27017"),
         MONGO_DB_NAME=os.getenv("MONGO_DB_NAME", "escrow_bot"),
-        ESCROW_API_URL=os.getenv("ESCROW_API_URL", ""),
-        ESCROW_API_KEY=os.getenv("ESCROW_API_KEY", ""),
     )
