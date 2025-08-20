@@ -40,10 +40,10 @@ def confirm_buttons():
     ik.add(InlineKeyboardButton("❌ Cancel", callback_data="confirm_no"))
     return ik
 
-
-def support_buttons():
+def support_buttons(support_url: str):
+    # Open the configured URL directly (e.g. https://t.me/support_handle)
     ik = InlineKeyboardMarkup()
-    ik.add(InlineKeyboardButton("📨 Contact Support", callback_data="support_contact"))
+    ik.add(InlineKeyboardButton("📨 Contact Support", url=support_url))
     ik.add(InlineKeyboardButton("📜 FAQ", callback_data="support_faq"))
     return ik
 

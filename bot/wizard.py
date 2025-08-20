@@ -13,7 +13,10 @@ async def _cancel(msg_or_cb, state: FSMContext):
     text = md2_escape("❌ Cancelled.")
     if isinstance(msg_or_cb, types.CallbackQuery):
         await msg_or_cb.message.answer(text, parse_mode="MarkdownV2")
-        await msg_or_cb.answer()
+        try:
+            await msg_or_cb.answer()  # stop spinner if any
+        except Exception:
+            pass
     else:
         await msg_or_cb.answer(text, parse_mode="MarkdownV2")
 
@@ -124,8 +127,17 @@ def register_wizard(dp: Dispatcher):
         if cb.data == "confirm_no":
             await _cancel(cb, state)
             return
+
+        # Ack immediately so the spinner stops even if DB is slow or fails
+        try:
+            await cb.answer("Creating escrow…", show_alert=False)
+        except Exception:
+            pass
+
         d = await state.get_data()
         role, cp = d["role"], d["counterparty"]
+
+        # Best-effort numeric ID; keep raw in meta for admins
         try:
             counterparty_id = int(cp)
         except Exception:
@@ -148,13 +160,20 @@ def register_wizard(dp: Dispatcher):
             "state": "PENDING_DEPOSIT",
             "meta": {"created_by": cb.from_user.id, "counterparty_raw": cp},
         }
-        escrow = await create_escrow(payload)
-        await state.finish()
-        await cb.message.answer(
-            md2_escape(f"✅ Escrow created.\nID: {escrow.get('_id','?')}"),
-            parse_mode="MarkdownV2",
-        )
-        await cb.answer()
+
+        try:
+            escrow = await create_escrow(payload)
+            await state.finish()
+            await cb.message.answer(
+                md2_escape(f"✅ Escrow created.\nID: {escrow.get('_id','?')}"),
+                parse_mode="MarkdownV2",
+            )
+        except Exception as e:
+            # Always notify user on failure; do not leave them hanging
+            await cb.message.answer(
+                md2_escape("⚠️ Failed to create escrow. Please try again later."),
+                parse_mode="MarkdownV2",
+            )
 
     @dp.callback_query_handler(lambda c: c.data == "wiz_cancel", state="*")
     async def cb_cancel(cb: types.CallbackQuery, state: FSMContext):
