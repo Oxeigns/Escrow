@@ -1,22 +1,24 @@
-import asyncio
-import logging
 import sys
+import logging
 from pathlib import Path
-
-try:
-    import uvloop
-except ModuleNotFoundError:  # pragma: no cover - optional dependency
-    uvloop = None
-
-# Ensure project root is on sys.path when running as a script
-ROOT_DIR = Path(__file__).resolve().parent.parent
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
 
 from aiogram import Bot, Dispatcher
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
-from aiogram.utils import executor
+from aiogram.utils.executor import start_polling
 from loguru import logger
+
+try:
+    import uvloop
+    uvloop.install()
+except ImportError:
+    pass
+
+import asyncio
+
+# Set project root for imports
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 from bot.config import load_config
 from bot.handlers import register_handlers
@@ -25,38 +27,41 @@ from webhooks.handler import run_webhook, delete_webhook
 from database.mongo import init_indexes
 
 
-async def main():
-    cfg = load_config()
-    logging.basicConfig(level=logging.INFO)
-    logger.info("Starting Escrow Bot Ultimate")
+def setup_logging():
+    logger.remove()
+    logger.add(sys.stderr, level="INFO")
+    logger.add("logs/escrow_bot.log", rotation="1 MB", retention="10 days", level="INFO")
 
-    bot = Bot(token=cfg.BOT_TOKEN, parse_mode="HTML")
+
+def main():
+    setup_logging()
+    logger.info("🚀 Starting Escrow Bot Ultimate")
+
+    config = load_config()
+    bot = Bot(token=config.BOT_TOKEN, parse_mode="HTML")
     dp = Dispatcher(bot, storage=MemoryStorage())
 
-    # Register handlers & callbacks
-    register_handlers(dp, banner_url=cfg.BANNER_URL)
+    # Register all handlers
+    register_handlers(dp, banner_url=config.BANNER_URL)
     register_callbacks(dp)
 
-    async def on_startup(_):
+    async def on_startup(dispatcher):
         await init_indexes()
-        logger.info("Indexes ensured")
+        logger.info("✅ MongoDB indexes ensured")
+        if not config.USE_WEBHOOK:
+            await delete_webhook(bot)
+        logger.info("🤖 Bot is ready to receive updates")
 
-    # Webhook vs Polling
-    if cfg.USE_WEBHOOK:
-        # run webhook server
-        await run_webhook(bot, dp)
+    async def on_shutdown(dispatcher):
+        await bot.session.close()
+        logger.info("🛑 Bot shutdown complete")
+
+    if config.USE_WEBHOOK:
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(run_webhook(bot, dp))
     else:
-        # ensure webhook is deleted for polling mode
-        await delete_webhook(bot)
-        executor.start_polling(dp, skip_updates=True, on_startup=on_startup)
+        start_polling(dp, skip_updates=True, on_startup=on_startup, on_shutdown=on_shutdown)
 
 
 if __name__ == "__main__":
-    if uvloop is not None:
-        try:
-            uvloop.run(main())
-        except AttributeError:
-            # Fallback if uvloop does not provide run()
-            asyncio.run(main())
-    else:
-        asyncio.run(main())
+    main()
