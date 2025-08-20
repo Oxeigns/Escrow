@@ -135,7 +135,8 @@ def register_handlers(dp: Dispatcher, banner_url: str):
     @dp.callback_query_handler(lambda c: c.data in {"support_contact", "support_faq"})
     async def cb_support_buttons(cb: types.CallbackQuery):
         if cb.data == "support_contact":
-            await cb.message.answer(md2_escape("Contact @support"), parse_mode="MarkdownV2")
+            text = "Support: https://t.me/botdukan\nDeveloper @oxeign"
+            await cb.message.answer(md2_escape(text), parse_mode="MarkdownV2")
         else:
             await cb.message.answer(md2_escape("FAQ: https://example.com/faq"), parse_mode="MarkdownV2")
         await cb.answer()
