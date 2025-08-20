@@ -5,7 +5,6 @@ from pathlib import Path
 
 from aiogram import Bot, Dispatcher
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
-from aiogram.utils.executor import start_polling
 from aiogram.utils import exceptions
 from loguru import logger
 
@@ -24,7 +23,7 @@ def setup_logging():
     logger.add("bot.log", rotation="10 MB")
 
 
-def main():
+async def main():
     cfg = load_config()
     setup_logging()
 
@@ -39,27 +38,23 @@ def main():
             await delete_webhook(bot)
         logger.info("🚀 Bot started (webhook=%s)", cfg.USE_WEBHOOK)
 
-    async def on_shutdown(dispatcher: Dispatcher):
+    try:
+        if cfg.USE_WEBHOOK:
+            await run_webhook(bot, dp)
+        else:
+            await dp.start_polling(
+                skip_updates=True,
+                on_startup=on_startup,
+            )
+    except exceptions.TerminatedByOtherGetUpdates:
+        logger.error(
+            "Another instance of the bot is running. Please ensure only one bot instance runs at a time."
+        )
+    finally:
         await bot.session.close()
         logger.info("🛑 Bot shutdown complete")
 
-    if cfg.USE_WEBHOOK:
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(run_webhook(bot, dp))
-    else:
-        try:
-            start_polling(
-                dp,
-                skip_updates=True,
-                on_startup=on_startup,
-                on_shutdown=on_shutdown,
-            )
-        except exceptions.TerminatedByOtherGetUpdates:
-            logger.error(
-                "Another instance of the bot is running. Please ensure only one bot instance runs at a time."
-            )
-
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
 
