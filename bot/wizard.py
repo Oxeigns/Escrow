@@ -8,22 +8,22 @@ from bot.blacklist import is_blacklisted
 from bot.escrow import create_escrow
 
 
-async def cancel_flow(msg_or_cb, state: FSMContext):
+async def _cancel(msg_or_cb, state: FSMContext):
     await state.finish()
+    text = md2_escape("❌ Cancelled.")
     if isinstance(msg_or_cb, types.CallbackQuery):
-        await msg_or_cb.message.answer(md2_escape("❌ Cancelled."), parse_mode="MarkdownV2")
+        await msg_or_cb.message.answer(text, parse_mode="MarkdownV2")
         await msg_or_cb.answer()
     else:
-        await msg_or_cb.answer(md2_escape("❌ Cancelled."), parse_mode="MarkdownV2")
+        await msg_or_cb.answer(text, parse_mode="MarkdownV2")
 
 
 def register_wizard(dp: Dispatcher):
     @dp.message_handler(commands=["escrow"])
     async def cmd_escrow(msg: types.Message, state: FSMContext):
-        # Blacklist check
         blacklisted, doc = await is_blacklisted(msg.from_user.id)
         if blacklisted:
-            reason = doc.get("reason", "No reason provided")
+            reason = doc.get("reason", "No reason provided") if doc else "No reason provided"
             await msg.answer(
                 md2_escape(f"🚫 You are blacklisted.\nReason: {reason}"),
                 parse_mode="MarkdownV2",
@@ -36,30 +36,27 @@ def register_wizard(dp: Dispatcher):
         )
         await EscrowWizard.Role.set()
 
-    @dp.callback_query_handler(
-        lambda c: c.data in {"role_buyer", "role_seller"}, state=EscrowWizard.Role
-    )
+    @dp.callback_query_handler(lambda c: c.data in {"role_buyer", "role_seller"}, state=EscrowWizard.Role)
     async def pick_role(cb: types.CallbackQuery, state: FSMContext):
         role = "buyer" if cb.data.endswith("buyer") else "seller"
         await state.update_data(role=role)
         await cb.message.answer(
-            md2_escape("Enter your counterparty's @username or Telegram numeric ID:"),
+            md2_escape("Enter your counterparty's @username or numeric Telegram ID:"),
             parse_mode="MarkdownV2",
         )
-        await EscrowWizard.next()
+        await EscrowWizard.Counterparty.set()
         await cb.answer()
 
     @dp.message_handler(state=EscrowWizard.Counterparty, content_types=types.ContentTypes.TEXT)
     async def set_counterparty(msg: types.Message, state: FSMContext):
-        text = (msg.text or "").strip()
-        cp = text.lstrip("@")
+        cp = (msg.text or "").strip().lstrip("@")
         await state.update_data(counterparty=cp)
         await msg.answer(
             md2_escape("Choose item type:"),
             parse_mode="MarkdownV2",
             reply_markup=item_type_buttons(),
         )
-        await EscrowWizard.next()
+        await EscrowWizard.ItemType.set()
 
     @dp.callback_query_handler(lambda c: c.data.startswith("type_"), state=EscrowWizard.ItemType)
     async def pick_item_type(cb: types.CallbackQuery, state: FSMContext):
@@ -69,7 +66,7 @@ def register_wizard(dp: Dispatcher):
             md2_escape("Enter a short description of the item/service:"),
             parse_mode="MarkdownV2",
         )
-        await EscrowWizard.next()
+        await EscrowWizard.Description.set()
         await cb.answer()
 
     @dp.message_handler(state=EscrowWizard.Description, content_types=types.ContentTypes.TEXT)
@@ -86,7 +83,7 @@ def register_wizard(dp: Dispatcher):
             md2_escape("Enter amount (e.g., `1499`, or `1499 USD`). Default currency is INR."),
             parse_mode="MarkdownV2",
         )
-        await EscrowWizard.next()
+        await EscrowWizard.Amount.set()
 
     @dp.message_handler(state=EscrowWizard.Amount, content_types=types.ContentTypes.TEXT)
     async def set_amount(msg: types.Message, state: FSMContext):
@@ -106,20 +103,14 @@ def register_wizard(dp: Dispatcher):
             )
             return
         await state.update_data(amount=amount, currency=currency)
-        data = await state.get_data()
-        role = data["role"]
-        cp = data["counterparty"]
-        item_type = data["item_type"]
-        desc = data["description"]
-        amt = data["amount"]
-        cur = data["currency"]
+        d = await state.get_data()
         summary = (
             f"*Please confirm*\n"
-            f"Role: {role}\n"
-            f"Counterparty: {cp}\n"
-            f"Item type: {item_type}\n"
-            f"Description: {desc}\n"
-            f"Amount: {amt} {cur}\n"
+            f"Role: {d['role']}\n"
+            f"Counterparty: {d['counterparty']}\n"
+            f"Item type: {d['item_type']}\n"
+            f"Description: {d['description']}\n"
+            f"Amount: {d['amount']} {d['currency']}\n"
         )
         await msg.answer(
             md2_escape(summary),
@@ -128,34 +119,32 @@ def register_wizard(dp: Dispatcher):
         )
         await EscrowWizard.Confirm.set()
 
-    @dp.callback_query_handler(
-        lambda c: c.data in {"confirm_yes", "confirm_no"}, state=EscrowWizard.Confirm
-    )
+    @dp.callback_query_handler(lambda c: c.data in {"confirm_yes", "confirm_no"}, state=EscrowWizard.Confirm)
     async def do_confirm(cb: types.CallbackQuery, state: FSMContext):
         if cb.data == "confirm_no":
-            await cancel_flow(cb, state)
+            await _cancel(cb, state)
             return
-        data = await state.get_data()
-        role = data["role"]
-        cp = data["counterparty"]
+        d = await state.get_data()
+        role, cp = d["role"], d["counterparty"]
         try:
-            seller_id = int(cp) if role == "buyer" else cb.from_user.id
-            buyer_id = cb.from_user.id if role == "buyer" else int(cp)
-        except ValueError:
-            await cb.message.answer(
-                "❌ Counterparty ID must be a numeric Telegram ID."
-            )
-            await state.finish()
-            await cb.answer()
-            return
+            counterparty_id = int(cp)
+        except Exception:
+            counterparty_id = None
+
+        if role == "buyer":
+            buyer_id = cb.from_user.id
+            seller_id = counterparty_id or -1
+        else:
+            buyer_id = counterparty_id or -1
+            seller_id = cb.from_user.id
 
         payload = {
             "buyer_id": buyer_id,
             "seller_id": seller_id,
-            "item_type": data["item_type"],
-            "description": data["description"],
-            "amount_cents": data["amount"] * 100,
-            "currency": data["currency"],
+            "item_type": d["item_type"],
+            "description": d["description"],
+            "amount_cents": d["amount"] * 100,
+            "currency": d["currency"],
             "state": "PENDING_DEPOSIT",
             "meta": {"created_by": cb.from_user.id, "counterparty_raw": cp},
         }
@@ -169,9 +158,9 @@ def register_wizard(dp: Dispatcher):
 
     @dp.callback_query_handler(lambda c: c.data == "wiz_cancel", state="*")
     async def cb_cancel(cb: types.CallbackQuery, state: FSMContext):
-        await cancel_flow(cb, state)
+        await _cancel(cb, state)
 
     @dp.message_handler(commands=["cancel"], state="*")
     async def msg_cancel(msg: types.Message, state: FSMContext):
-        await cancel_flow(msg, state)
+        await _cancel(msg, state)
 

@@ -5,6 +5,7 @@ from bot.utils import md2_escape
 from bot.admins import add_admin, remove_admin, list_admins
 from bot.config import load_config
 from bot.wizard import register_wizard
+from database.mongo import db
 
 
 def register_handlers(dp: Dispatcher, banner_url: str):
@@ -50,20 +51,14 @@ def register_handlers(dp: Dispatcher, banner_url: str):
 
     @dp.message_handler(commands=["myescrows"])
     async def cmd_myescrows(msg: types.Message):
-        from database.mongo import db
-
-        cur = (
-            db.escrows.find(
-                {
-                    "$or": [
-                        {"buyer_id": msg.from_user.id},
-                        {"seller_id": msg.from_user.id},
-                    ]
-                }
-            )
-            .sort("_id", -1)
-            .limit(10)
-        )
+        cur = db.escrows.find(
+            {
+                "$or": [
+                    {"buyer_id": msg.from_user.id},
+                    {"seller_id": msg.from_user.id},
+                ]
+            }
+        ).sort("_id", -1).limit(10)
         rows = [r async for r in cur]
         if not rows:
             await msg.answer(md2_escape("No escrows found."), parse_mode="MarkdownV2")
@@ -72,7 +67,7 @@ def register_handlers(dp: Dispatcher, banner_url: str):
         for r in rows:
             rid = str(r.get("_id"))
             st = r.get("state", "INITIATED")
-            amt = r.get("amount_cents", 0) // 100
+            amt = int(r.get("amount_cents", 0)) // 100
             cur = r.get("currency", "INR")
             lines.append(f"• {rid} — {st} — {amt} {cur}")
         await msg.answer(md2_escape("*Your Last Escrows:*\n" + "\n".join(lines)), parse_mode="MarkdownV2")
@@ -110,27 +105,25 @@ def register_handlers(dp: Dispatcher, banner_url: str):
             return
         await msg.answer(md2_escape("Admins:\n" + "\n".join(map(str, rows))), parse_mode="MarkdownV2")
 
-    # Fallback router for keyboard
+    # Fallback router for keyboard text buttons
     @dp.message_handler()
     async def echo_router(msg: types.Message):
         text = (msg.text or "").lower()
         if "escrow" in text:
-            await cmd_escrow_entry(msg)  # alias
+            state = dp.current_state(user=msg.from_user.id, chat=msg.chat.id)
+            await state.finish()
+            for h in dp.message_handlers.handlers:
+                if getattr(h, "commands", None) and "escrow" in h.commands:
+                    await h.callback(msg)
+                    return
         elif "support" in text:
             await cmd_support(msg)
+            return
         elif "help" in text:
             await cmd_help(msg)
+            return
         else:
             await msg.answer(md2_escape("Use /escrow to start or /support for help."), parse_mode="MarkdownV2")
-
-    # alias to /escrow for the fallback router
-    async def cmd_escrow_entry(msg: types.Message):
-        state = dp.current_state(user=msg.from_user.id, chat=msg.chat.id)
-        await state.finish()
-        for handler in dp.message_handlers.handlers:
-            if getattr(handler, "commands", None) and "escrow" in handler.commands:
-                await handler.callback(msg)
-                return
 
     @dp.callback_query_handler(lambda c: c.data in {"support_contact", "support_faq"})
     async def cb_support_buttons(cb: types.CallbackQuery):
