@@ -7,9 +7,13 @@ from aiogram.types import (
 
 
 def main_menu():
+    """Main reply keyboard shown on /start."""
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add(KeyboardButton("🛡️ Start Escrow (/escrow)"))
-    kb.add(KeyboardButton("🆘 Support (/support)"))
+    kb.row(
+        KeyboardButton("🛡️ Escrow"),
+        KeyboardButton("🆘 Support"),
+    )
+    kb.add(KeyboardButton("ℹ️ Help"))
     return kb
 
 

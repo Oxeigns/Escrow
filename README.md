@@ -11,6 +11,9 @@ A production-ready Telegram escrow bot with webhook & polling support, MongoDB s
 - Blacklist/scammer detection
 - Safe MarkdownV2/HTML rendering
 
+## Requirements
+- Python 3.11 (Python 3.12 is not yet supported due to `aiohttp` build issues)
+
 ## Installation
 ### Using pip
 ```bash

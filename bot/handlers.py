@@ -14,8 +14,8 @@ def register_handlers(dp: Dispatcher, banner_url: str):
         txt = (
             "*Escrow Bot Ultimate*\n"
             "\n"
-            "Secure deals with buyer/seller escrow.\n"
-            "Use /escrow to begin."
+            "💼 Secure peer‑to‑peer trades with escrow.\n"
+            "Press 🛡️ Escrow to begin or ℹ️ Help for guidance."
         )
         if banner_url:
             try:
@@ -35,6 +35,19 @@ def register_handlers(dp: Dispatcher, banner_url: str):
     @dp.message_handler(commands=["support"])
     async def cmd_support(msg: types.Message):
         await support_message(msg, banner_url)
+
+    @dp.message_handler(commands=["help"])
+    async def cmd_help(msg: types.Message):
+        txt = (
+            "*How to use the bot*\n"
+            "\n"
+            "🛡️ /escrow – start a protected deal\n"
+            "🆘 /support – talk to support or view the FAQ\n"
+            "⚖️ /dispute – open a dispute with your Escrow ID\n"
+        )
+        await msg.answer(
+            md2_escape(txt), parse_mode="MarkdownV2", reply_markup=main_menu()
+        )
 
     @dp.message_handler(commands=["escrow"])
     async def cmd_escrow(msg: types.Message):
@@ -73,6 +86,8 @@ def register_handlers(dp: Dispatcher, banner_url: str):
             await cmd_escrow(msg)
         elif "support" in text:
             await cmd_support(msg)
+        elif "help" in text:
+            await cmd_help(msg)
         else:
             await msg.answer(
                 md2_escape("Use /escrow to start or /support for help."),
