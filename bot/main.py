@@ -1,6 +1,17 @@
 import asyncio
 import logging
-import uvloop
+import sys
+from pathlib import Path
+
+try:
+    import uvloop
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    uvloop = None
+
+# Ensure project root is on sys.path when running as a script
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 from aiogram import Bot, Dispatcher
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
@@ -41,8 +52,11 @@ async def main():
 
 
 if __name__ == "__main__":
-    try:
-        uvloop.run(main())
-    except AttributeError:
-        # Fallback if uvloop not available on platform
+    if uvloop is not None:
+        try:
+            uvloop.run(main())
+        except AttributeError:
+            # Fallback if uvloop does not provide run()
+            asyncio.run(main())
+    else:
         asyncio.run(main())
