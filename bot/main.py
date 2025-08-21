@@ -1,8 +1,15 @@
-import logging, asyncio
+import logging
+import asyncio
+import os
+import sys
+
 from aiogram import Bot, Dispatcher, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.utils.executor import start_polling
 from loguru import logger
+
+# Ensure project root is in the Python path when executed directly
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from bot.config import load_config
 from bot.handlers import register_handlers
