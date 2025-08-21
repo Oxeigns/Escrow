@@ -1,16 +1,8 @@
-import asyncio
-import logging
-import sys
-from pathlib import Path
-
-from aiogram import Bot, Dispatcher
+import logging, asyncio
+from aiogram import Bot, Dispatcher, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
-from aiogram.utils import exceptions
+from aiogram.utils.executor import start_polling
 from loguru import logger
-
-ROOT_DIR = Path(__file__).resolve().parent.parent
-if str(ROOT_DIR) not in sys.path:
-    sys.path.append(str(ROOT_DIR))
 
 from bot.config import load_config
 from bot.handlers import register_handlers
@@ -20,40 +12,48 @@ from database.mongo import init_indexes
 
 def setup_logging():
     logging.basicConfig(level=logging.INFO)
-    logger.add("bot.log", rotation="10 MB")
+    logger.add("logs/escrow_bot.log", rotation="10 MB", retention="14 days")
 
 
-async def main():
+async def _set_bot_commands(bot: Bot):
+    cmds = [
+        types.BotCommand("start", "welcome"),
+        types.BotCommand("panel", "control panel"),
+        types.BotCommand("escrow", "start escrow wizard"),
+        types.BotCommand("myescrows", "list your escrows"),
+        types.BotCommand("support", "contact support"),
+        types.BotCommand("cancel", "cancel current step"),
+        types.BotCommand("help", "commands help"),
+    ]
+    await bot.set_my_commands(cmds)
+
+
+def main():
     cfg = load_config()
     setup_logging()
 
     bot = Bot(token=cfg.BOT_TOKEN)
     dp = Dispatcher(bot, storage=MemoryStorage())
-
     register_handlers(dp, banner_url=cfg.BANNER_URL)
 
     async def on_startup(dispatcher: Dispatcher):
         await init_indexes()
+        await _set_bot_commands(bot)
         if not cfg.USE_WEBHOOK:
             await delete_webhook(bot)
-        logger.info("🚀 Bot started (webhook=%s)", cfg.USE_WEBHOOK)
+        logger.info("Bot started (webhook=%s)", cfg.USE_WEBHOOK)
 
-    try:
-        if cfg.USE_WEBHOOK:
-            await run_webhook(bot, dp)
-        else:
-            await on_startup(dp)
-            await dp.start_polling()
-    except exceptions.TerminatedByOtherGetUpdates:
-        logger.error(
-            "Another instance of the bot is running. Please ensure only one bot instance runs at a time."
-        )
-    finally:
-        session = await bot.get_session()
-        await session.close()
-        logger.info("🛑 Bot shutdown complete")
+    async def on_shutdown(dispatcher: Dispatcher):
+        await bot.session.close()
+        logger.info("Shutdown complete")
+
+    if cfg.USE_WEBHOOK:
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(run_webhook(bot, dp))
+    else:
+        start_polling(dp, skip_updates=True, on_startup=on_startup, on_shutdown=on_shutdown)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
 
