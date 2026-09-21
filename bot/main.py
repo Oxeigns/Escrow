@@ -51,12 +51,14 @@ def main():
         logger.info("Bot started (webhook=%s)", cfg.USE_WEBHOOK)
 
     async def on_shutdown(dispatcher: Dispatcher):
-        await bot.session.close()
+        await dispatcher.storage.close()
+        await dispatcher.storage.wait_closed()
+        session = await bot.get_session()
+        await session.close()
         logger.info("Shutdown complete")
 
     if cfg.USE_WEBHOOK:
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(run_webhook(bot, dp))
+        run_webhook(bot, dp, on_startup=on_startup, on_shutdown=on_shutdown)
     else:
         start_polling(dp, skip_updates=True, on_startup=on_startup, on_shutdown=on_shutdown)
 
